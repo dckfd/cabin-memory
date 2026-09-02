@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "protocol_id": "cockpit-long-memory-20-v1",
+  "dataset_id": "longmemeval",
+  "selection": "all_original_hard_cockpit_questions",
+  "seed": "curated-v1",
+  "question_ids": [
+    "cockpit-hard#q01",
+    "cockpit-hard#q02",
+    "cockpit-hard#q03",
+    "cockpit-hard#q04",
+    "cockpit-hard#q05",
+    "cockpit-hard#q06",
+    "cockpit-hard#q07",
+    "cockpit-hard#q08",
+    "cockpit-hard#q09",
+    "cockpit-hard#q10",
+    "cockpit-hard#q11",
+    "cockpit-hard#q12",
+    "cockpit-hard#q13",
+    "cockpit-hard#q14",
+    "cockpit-hard#q15",
+    "cockpit-hard#q16",
+    "cockpit-hard#q17",
+    "cockpit-hard#q18",
+    "cockpit-hard#q19",
+    "cockpit-hard#q20"
+  ],
+  "conversation_ids": [
+    "cockpit-hard-cn-01",
+    "cockpit-hard-cn-02",
+    "cockpit-hard-en-01",
+    "cockpit-hard-en-02"
+  ],
+  "counts": {
+    "questions": 20,
+    "conversations": 4,
+    "sessions": 44,
+    "messages": 97
+  },
+  "leakage_controls": {
+    "answers_read_for_selection": false,
+    "evidence_ids_read_for_selection": false
+  }
+}

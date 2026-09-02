@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.tencentdb-memory/schemas/retrieval-row.schema.json",
+  "title": "Canonical memory retrieval row",
+  "type": "object",
+  "required": ["schema_version", "framework", "question", "hits", "context", "metrics"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "framework": {"type": "string", "minLength": 1},
+    "question": {
+      "type": "object",
+      "required": ["question_id", "conversation_id", "text", "answers"],
+      "properties": {
+        "question_id": {"type": "string", "minLength": 1},
+        "conversation_id": {"type": "string", "minLength": 1},
+        "text": {"type": "string"},
+        "answers": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["content", "source_ids", "metadata"],
+        "properties": {
+          "content": {"type": "string"},
+          "score": {"type": ["number", "null"]},
+          "source_ids": {"type": "array", "items": {"type": "string"}},
+          "metadata": {"type": "object"},
+          "parts": {
+            "type": "array",
+            "items": {"$ref": "#/$defs/contentPart"}
+          }
+        }
+      }
+    },
+    "context": {"type": "string"},
+    "metrics": {
+      "type": "object",
+      "required": ["hit_count", "context_chars", "retrieved_context_chars", "context_truncated", "search_seconds", "conversation_ingest_seconds"]
+    }
+  },
+  "$defs": {
+    "contentPart": {
+      "type": "object",
+      "required": ["type", "text", "uri", "mime_type", "metadata"],
+      "properties": {
+        "type": {"enum": ["text", "image", "audio", "video", "file"]},
+        "text": {"type": "string"},
+        "uri": {"type": "string"},
+        "mime_type": {"type": "string"},
+        "metadata": {"type": "object"}
+      }
+    }
+  }
+}

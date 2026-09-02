@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.tencentdb-memory/schemas/prediction-row.schema.json",
+  "title": "Canonical answer prediction row",
+  "type": "object",
+  "required": ["schema_version", "framework", "qa_id", "conversation_id", "predicted_answer", "usage"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "framework": {"type": "string"},
+    "qa_id": {"type": "string"},
+    "conversation_id": {"type": "string"},
+    "predicted_answer": {"type": "string"},
+    "usage": {"type": "object"}
+  }
+}

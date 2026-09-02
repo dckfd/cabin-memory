@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.tencentdb-memory/schemas/external-protocol.schema.json",
+  "title": "Memory framework external bridge request",
+  "type": "object",
+  "required": ["protocol", "operation", "payload"],
+  "properties": {
+    "protocol": {"const": 1},
+    "operation": {"enum": ["prepare", "ingest_session", "finalize", "search", "answer", "reflect", "wait_until_ready", "delete", "update", "get_profile", "get_graph", "drill_down", "close"]},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false
+}

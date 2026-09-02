@@ -1,0 +1,35 @@
+{
+  "expected_count": 500,
+  "result_count": 500,
+  "correct": 446,
+  "errors": 0,
+  "accuracy": 0.892,
+  "by_category": {
+    "knowledge-update": {
+      "count": 200,
+      "correct": 178,
+      "errors": 0,
+      "accuracy": 0.89
+    },
+    "multi-session": {
+      "count": 150,
+      "correct": 122,
+      "errors": 0,
+      "accuracy": 0.8133333333333334
+    },
+    "single-session-preference": {
+      "count": 50,
+      "correct": 46,
+      "errors": 0,
+      "accuracy": 0.92
+    },
+    "temporal-reasoning": {
+      "count": 100,
+      "correct": 100,
+      "errors": 0,
+      "accuracy": 1.0
+    }
+  },
+  "judge_model": "deepseek-v4-pro",
+  "results": "artifacts/results/recovery33-full500/judge-results.jsonl"
+}

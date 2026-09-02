@@ -1,0 +1,42 @@
+{
+  "dataset_id": "cockpit-zh-public-mix-500-v5",
+  "schema_version": 1,
+  "seed": 2026083007,
+  "language": "zh",
+  "input_modality": "ASR text transcript; audio and ASR accuracy are out of scope",
+  "conversation_count": 50,
+  "question_count": 500,
+  "abstention_count": 50,
+  "session_count": 1050,
+  "message_count": 2100,
+  "ability_distribution": {
+    "aggregation-frequency": 50,
+    "conditional-priority": 50,
+    "correction-retained-constraint": 50,
+    "cutoff-state": 50,
+    "final-cancellation": 50,
+    "insufficient-evidence-abstention": 50,
+    "latest-final-update": 50,
+    "multi-person-cross-session": 50,
+    "multi-target-final-state": 50,
+    "two-date-validity": 50
+  },
+  "surface_style_distribution": {
+    "clean": 100,
+    "colloquial-filler": 100,
+    "elliptical-reference": 100,
+    "homophone-text-noise": 100,
+    "no-punctuation": 100
+  },
+  "anchor_source_distribution": {
+    "CrossWOZ": 25,
+    "RiSAWOZ": 25
+  },
+  "license_class_distribution": {
+    "noncommercial-mixed-public-source": 250,
+    "permissive-public-source": 250
+  },
+  "source_split_policy": "one unique public anchor dialogue per pack; public test records are transformed into novel long-memory relations",
+  "holdout_policy": "sealed before any end-to-end answer or judge run; no post-score repair in place",
+  "contamination_note": "public source utterances may have appeared in model pretraining; answers depend on new cross-session compositions and cannot be copied from source QA"
+}

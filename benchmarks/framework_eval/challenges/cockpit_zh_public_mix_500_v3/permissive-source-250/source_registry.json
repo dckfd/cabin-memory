@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "snapshot_date": "2026-08-29",
+  "sources": [
+    {
+      "dataset": "CrossWOZ",
+      "official_repository": "https://github.com/thu-coai/CrossWOZ",
+      "commit": "df82c9fdff91b9b130f2d6b89110d3870ba6260e",
+      "artifact": "data/crosswoz/test.json.zip",
+      "artifact_sha256": "e57703894995211bba8638f130dc7df81e8992b71f3c05c10022ad23d6ca5310",
+      "license_file_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "declared_data_or_repository_license": "Apache-2.0",
+      "license_class": "permissive-public-source",
+      "included_packs": 25
+    }
+  ],
+  "excluded": [
+    {
+      "dataset": "CATSLU",
+      "official_page": "https://sites.google.com/view/catslu/home/",
+      "reason": "public download exists, but no explicit dataset redistribution/commercial license was verified"
+    },
+    {
+      "dataset": "AISHELL-5",
+      "official_page": "https://openslr.org/159/",
+      "reason": "ASR/diarization corpus without long-memory facts or QA gold; ASR quality is out of scope"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "resolved_at": "2026-08-24",
+  "sources": [
+    {"id":"mem0","repository":"https://github.com/mem0ai/mem0","path":"third_party/memory_frameworks/mem0","commit":"4debc58a8337","license":"Apache-2.0"},
+    {"id":"memory-benchmarks","repository":"https://github.com/mem0ai/memory-benchmarks","path":"third_party/memory_frameworks/memory-benchmarks","commit":"4b61c5d","license":"Apache-2.0"},
+    {"id":"everos","repository":"https://github.com/EverMind-AI/EverOS","path":"third_party/memory_frameworks/EverOS","commit":"48fc9084888b","license":"Apache-2.0"},
+    {"id":"memos","repository":"https://github.com/MemTensor/MemOS","path":"third_party/memory_frameworks/MemOS","commit":"8d310a7a4be6","license":"Apache-2.0"},
+    {"id":"mempalace","repository":"https://github.com/MemPalace/mempalace","path":"third_party/memory_frameworks/mempalace","commit":"8516db7fbc7f","license":"MIT"},
+    {"id":"memora","repository":"https://github.com/microsoft/Memora","path":"third_party/memory_frameworks/Memora","commit":"dec3f8f2444e","license":"MIT"},
+    {"id":"lightmem","repository":"https://github.com/zjunlp/LightMem","path":"third_party/memory_frameworks/LightMem","commit":"8fc9a9179f91","license":"MIT"},
+    {"id":"hindsight","repository":"https://github.com/vectorize-io/hindsight","path":"third_party/memory_frameworks/hindsight","commit":"899c07e6c447","license":"MIT"},
+    {"id":"memmachine","repository":"https://github.com/MemMachine/MemMachine","path":"third_party/memory_frameworks/MemMachine","commit":"d7856f23f3e0","license":"Apache-2.0"},
+    {"id":"hypermem","repository":"https://github.com/EverMind-AI/HyperMem","path":"third_party/memory_frameworks/HyperMem","commit":"15c700908f3e","license":"Apache-2.0"},
+    {"id":"memoryos","repository":"https://github.com/BAI-LAB/MemoryOS","path":"third_party/memory_frameworks/MemoryOS","commit":"587ed7755c7a","license":"Apache-2.0"},
+    {"id":"simplemem","repository":"https://github.com/aiming-lab/SimpleMem","path":"third_party/memory_frameworks/SimpleMem","commit":"db80b6a7c591","license":"MIT"},
+    {"id":"lazymem","repository":"https://github.com/allacnobug/LazyMem","path":"third_party/memory_frameworks/LazyMem","commit":"af4109960aac","license":"not-declared"},
+    {"id":"mem-pal","repository":"https://github.com/hzp3517/Mem-PAL","path":"third_party/memory_frameworks/Mem-PAL","commit":"ad290d4a1d39","license":"not-declared"}
+  ],
+  "unavailable": [
+    {"id":"memorax","reason":"Public conceptual specification; no verified open-source implementation corresponding to the reported score."}
+  ]
+}

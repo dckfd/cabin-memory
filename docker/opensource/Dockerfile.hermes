@@ -1,0 +1,106 @@
+# TDAI Memory + Hermes Agent — All-in-One Open Source Image
+#
+# Based on install_hermes_ubuntu24.04_hongkong.sh installation logic.
+# Pre-installs Hermes Agent + memory_tencentdb plugin + TDAI Memory Gateway.
+#
+# Build: docker build -f Dockerfile.hermes -t hermes-memory .
+# Run:   docker run -it -p 8420:8420 \
+#          -e MODEL_API_KEY=xxx \
+#          hermes-memory
+#
+# Hermes and TDAI share a single set of model config via MODEL_* env vars.
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# ============================================================
+# System dependencies (mirrors install script)
+# ============================================================
+RUN apt-get update && \
+    apt-get install -y git curl ripgrep ffmpeg python3-pip python3-venv \
+        build-essential python3-dev make g++ && \
+    # Node.js 22
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# ============================================================
+# Install TDAI Memory Gateway (npm)
+# ============================================================
+WORKDIR /opt/tdai-gateway
+
+RUN echo '{"name":"tdai-memory-standalone","version":"1.0.0","type":"module","private":true}' > package.json && \
+    npm install @tencentdb-agent-memory/memory-tencentdb@latest tsx && \
+    npm cache clean --force
+
+# ============================================================
+# Install Hermes Agent (official installer, skip browser)
+# ============================================================
+ENV HERMES_SKIP_BROWSER_SETUP=1
+
+RUN curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh -o /tmp/install-hermes.sh && \
+    # Patch: skip browser setup
+    sed -i '/^install_node_deps() {/a\    if [ "${HERMES_SKIP_BROWSER_SETUP:-0}" = "1" ]; then echo "Skipping browser deps"; return 0; fi' /tmp/install-hermes.sh && \
+    # Patch: shallow clone
+    sed -i 's/git clone --branch/git clone --depth 1 --branch/' /tmp/install-hermes.sh && \
+    HOME=/root bash /tmp/install-hermes.sh --skip-setup && \
+    rm -f /tmp/install-hermes.sh
+
+# Hermes data dir (user-independent)
+ENV HERMES_HOME=/opt/data
+
+# Remove installer-generated config so HERMES_HOME takes sole precedence
+RUN rm -f /root/.hermes/config.yaml /root/.hermes/.env
+
+# Link memory_tencentdb plugin into Hermes bundled plugin discovery path
+# (plugins/memory/__init__.py scans <hermes-repo>/plugins/memory/<name>/)
+RUN ln -sf /opt/tdai-gateway/node_modules/@tencentdb-agent-memory/memory-tencentdb/hermes-plugin/memory/memory_tencentdb \
+    /usr/local/lib/hermes-agent/plugins/memory/memory_tencentdb
+
+# ============================================================
+# Configuration — Unified model config (shared by Hermes + TDAI)
+# ============================================================
+RUN mkdir -p /opt/data/tdai-memory
+
+# -- Unified model config (users only need to set these) --
+# MODEL_API_KEY must be passed at runtime via -e (not baked into image)
+ENV MODEL_NAME=deepseek-v3.2
+ENV MODEL_BASE_URL=https://api.lkeap.cloud.tencent.com/v1
+ENV MODEL_PROVIDER=custom
+
+# -- Gateway port --
+ENV TDAI_GATEWAY_PORT=8420
+ENV TDAI_GATEWAY_HOST=0.0.0.0
+ENV TDAI_DATA_DIR=/opt/data/tdai-memory
+
+# -- Plugin connection (Hermes -> Gateway) --
+ENV MEMORY_TENCENTDB_GATEWAY_HOST=127.0.0.1
+ENV MEMORY_TENCENTDB_GATEWAY_PORT=8420
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -sf http://localhost:8420/health || exit 1
+
+EXPOSE 8420
+VOLUME ["/opt/data"]
+
+# ============================================================
+# CMD: Sync MODEL_* -> generate configs -> start Gateway (foreground)
+#      Use: docker exec hermes-memory hermes  (on-demand)
+# ============================================================
+CMD ["bash", "-c", "\
+  mkdir -p /opt/data/tdai-memory && \
+  CFG=/opt/data/config.yaml && \
+  ENVFILE=/opt/data/.env && \
+  export TDAI_LLM_MODEL=\"${MODEL_NAME}\" && \
+  export TDAI_LLM_BASE_URL=\"${MODEL_BASE_URL}\" && \
+  export TDAI_LLM_API_KEY=\"${MODEL_API_KEY}\" && \
+  printf \"model:\\n  default: \\\"${MODEL_NAME}\\\"\\n  provider: \\\"${MODEL_PROVIDER}\\\"\\n  base_url: \\\"${MODEL_BASE_URL}\\\"\\n  api_key: \\\"${MODEL_API_KEY}\\\"\\n\\nmemory:\\n  provider: memory_tencentdb\\n\" > \"$CFG\" && \
+  printf \"OPENAI_API_KEY=${MODEL_API_KEY}\\n\" > \"$ENVFILE\" && \
+  echo \"=== Config: model=${MODEL_NAME}, provider=${MODEL_PROVIDER}, url=${MODEL_BASE_URL} ===\" && \
+  echo \"=== Gateway starting... ===\" && \
+  echo \"=== Use: docker exec -it <container> hermes  to start a conversation ===\" && \
+  exec node --import tsx/esm \
+    /opt/tdai-gateway/node_modules/@tencentdb-agent-memory/memory-tencentdb/src/gateway/server.ts \
+"]

@@ -1,0 +1,27 @@
+{
+  "name": "Cockpit Long Memory Challenge 20",
+  "version": "cockpit-long-memory-20-v1",
+  "created": "2026-08-26",
+  "language": [
+    "zh-CN",
+    "en"
+  ],
+  "conversation_count": 4,
+  "session_count": 44,
+  "message_count": 97,
+  "question_count": 20,
+  "original_synthetic": true,
+  "copied_source_utterances": false,
+  "design_inspirations": [
+    {
+      "name": "CarMem",
+      "url": "https://github.com/johanneskirmayr/CarMem",
+      "use": "in-car preference, maintenance, and retrieval taxonomy"
+    },
+    {
+      "name": "LongMemEval",
+      "url": "https://github.com/xiaowu0162/LongMemEval",
+      "use": "multi-session, update, temporal, preference, and abstention taxonomy"
+    }
+  ]
+}

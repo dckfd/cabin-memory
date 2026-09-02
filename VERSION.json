@@ -1,0 +1,15 @@
+{
+  "release": "cockpit-zh-rc52-recovery33",
+  "snapshot_date": "2026-09-02",
+  "dataset": "cockpit-zh-public-mix-500-v7",
+  "memory_volume": "tdai-memory-core-cockpit-zh-rc52-v7-recovery33",
+  "evaluation": {
+    "correct": 446,
+    "total": 500,
+    "accuracy": 0.892
+  },
+  "source_baselines": {
+    "outer": "05eaead4c38d83426d2b6981bf6378bbf16fe2eb",
+    "runtime": "3aac5359b0a81060b90fb286b88dab907b8d387e"
+  }
+}

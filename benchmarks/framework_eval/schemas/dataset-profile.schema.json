@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.tencentdb-memory/schemas/dataset-profile.schema.json",
+  "title": "Dataset and judge plugin catalog",
+  "type": "object",
+  "required": ["version", "datasets"],
+  "properties": {
+    "version": {"const": 1},
+    "datasets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "adapter", "root", "judge", "modalities"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "adapter": {"type": "string", "pattern": "^[^:]+:[^:]+$"},
+          "root": {"type": "string", "minLength": 1},
+          "judge": {"type": "string", "pattern": "^[^:]+:[^:]+$"},
+          "judge_kwargs": {"type": "object"},
+          "modalities": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

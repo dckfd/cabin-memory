@@ -1,0 +1,22 @@
+{
+  "dataset_id": "cockpit-blind-200-v1",
+  "seed": 2026082701,
+  "conversation_count": 25,
+  "question_count": 200,
+  "abstention_count": 25,
+  "languages": {
+    "zh": 104,
+    "en": 96
+  },
+  "ability_distribution": {
+    "aggregation-frequency": 25,
+    "conditional-priority": 25,
+    "insufficient-evidence-abstention": 25,
+    "latest-final-update": 25,
+    "multi-person-cross-session": 25,
+    "multi-target-final-state": 25,
+    "two-date-validity": 25,
+    "update-cancel-negation": 25
+  },
+  "protocol": "seal before validator implementation; exactly one end-to-end score; no post-score fixes"
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.tencentdb-memory/schemas/content-part.schema.json",
+  "title": "Canonical multimodal content part",
+  "type": "object",
+  "required": ["type", "text", "uri", "mime_type", "metadata"],
+  "properties": {
+    "type": {"enum": ["text", "image", "audio", "video", "file"]},
+    "text": {"type": "string"},
+    "uri": {"type": "string"},
+    "mime_type": {"type": "string"},
+    "metadata": {"type": "object"}
+  },
+  "anyOf": [
+    {"properties": {"text": {"minLength": 1}}},
+    {"properties": {"uri": {"minLength": 1}}}
+  ],
+  "additionalProperties": false
+}

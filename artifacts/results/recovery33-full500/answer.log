@@ -1,0 +1,30 @@
+{
+  "questions": 500,
+  "skipped": 0,
+  "concurrency": 2,
+  "tokens": {
+    "prompt_tokens": 489082,
+    "completion_tokens": 9137,
+    "total_tokens": 498219
+  },
+  "answer_routes": {
+    "deterministic_slot": 142,
+    "model": 358
+  },
+  "answer_route_latency": {
+    "deterministic_slot": {
+      "count": 142,
+      "mean_seconds": 0.0006651239351592433,
+      "p50_seconds": 0.0005880980752408504,
+      "p95_seconds": 0.001129552023485303
+    },
+    "model": {
+      "count": 358,
+      "mean_seconds": 0.8183534502412073,
+      "p50_seconds": 0.8031610029283911,
+      "p95_seconds": 1.1879070939030498
+    }
+  },
+  "seconds": 146.6855660660658,
+  "output": "benchmarks/framework_eval_runs/cockpit-zh-final-completeness-rc52-20260830-v1/v7-recovery33-full500-harness-20260902-v1/predictions-flash.jsonl"
+}

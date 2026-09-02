@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "description": "Strict user-facing quality contracts layered on top of semantic correctness; used only by the evaluator.",
+  "contracts": {
+    "cockpit-hard#q02": {
+      "forbidden_attributions": [
+        {
+          "subject": "小雨",
+          "attributes": ["喜欢安静", "安静的素食", "露台座位"],
+          "window": 72
+        }
+      ]
+    },
+    "cockpit-hard#q03": {
+      "required_term_groups": [["浦东机场", "Pudong"], ["T1"], ["取消", "cancel"]]
+    },
+    "cockpit-hard#q15": {
+      "known_subjects_with_other_history": ["Maya"]
+    },
+    "cockpit-hard#q20": {
+      "known_subjects_with_other_history": ["Emma"]
+    }
+  }
+}

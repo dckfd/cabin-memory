@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "datasets": [
+    {
+      "id": "locomo_refined",
+      "adapter": "benchmarks.framework_eval.datasets.locomo_refined:LoCoMoRefinedDataset",
+      "root": "LoCoMo_refined",
+      "judge": "benchmarks.framework_eval.judges.locomo_refined:LoCoMoRefinedJudge",
+      "judge_kwargs": {"locomo_root": "$dataset_root"},
+      "modalities": ["text", "image-uri", "image-caption"]
+    },
+    {
+      "id": "longmemeval",
+      "adapter": "benchmarks.framework_eval.datasets.longmemeval:LongMemEvalDataset",
+      "root": "benchmarks/data/LongMemEval/normalized",
+      "judge": "benchmarks.framework_eval.judges.longmemeval:LongMemEvalJudge",
+      "judge_kwargs": {"dataset_root": "$dataset_root"},
+      "modalities": ["text"]
+    },
+    {
+      "id": "kvret_memory",
+      "adapter": "benchmarks.framework_eval.datasets.kvret_memory:KVRETMemoryDataset",
+      "root": "benchmarks/data/KVRET/normalized",
+      "judge": "benchmarks.framework_eval.judges.kvret_memory:KVRETMemoryJudge",
+      "judge_kwargs": {"dataset_root": "$dataset_root"},
+      "modalities": ["text"]
+    },
+    {
+      "id": "slurp_memory",
+      "adapter": "benchmarks.framework_eval.datasets.slurp_memory:SLURPMemoryDataset",
+      "root": "benchmarks/data/SLURP/normalized",
+      "judge": "benchmarks.framework_eval.judges.slurp_memory:SLURPMemoryJudge",
+      "judge_kwargs": {"dataset_root": "$dataset_root"},
+      "modalities": ["text"]
+    }
+  ]
+}

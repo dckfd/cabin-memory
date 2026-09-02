@@ -1,0 +1,781 @@
+/**
+ * TDAI Gateway — HTTP server for the Hermes sidecar.
+ *
+ * Exposes TDAI Core capabilities as HTTP endpoints:
+ *   GET  /health              — Health check
+ *   POST /recall              — Memory recall (prefetch)
+ *   POST /capture             — Conversation capture (sync_turn)
+ *   POST /search/memories     — L1 memory search
+ *   POST /search/conversations — L0 conversation search
+ *   POST /session/end         — Session end + flush
+ *   POST /seed               — Batch seed historical conversations (L0 → L1)
+ *   POST /offload/tool-call   — Short-term memory: compress tool output
+ *   POST /offload/before-prompt — Short-term memory: prepare context injection
+ *   GET  /offload/status      — Short-term memory: get compression stats
+ *   GET  /offload/drill-down  — Short-term memory: recover exact raw evidence
+ *
+ * Built with Node.js native `http` module — no Express/Fastify dependency.
+ * Designed to run as a managed sidecar alongside Hermes.
+ */
+
+import http from "node:http";
+import { URL } from "node:url";
+import { timingSafeEqual } from "node:crypto";
+import path from "node:path";
+import { TdaiCore } from "../core/tdai-core.js";
+import { StandaloneHostAdapter } from "../adapters/standalone/host-adapter.js";
+import { loadGatewayConfig } from "./config.js";
+import type { GatewayConfig } from "./config.js";
+import { initDataDirectories } from "../utils/pipeline-factory.js";
+import { initOffloadBridge } from "../offload/bridge.js";
+import { SessionFilter } from "../utils/session-filter.js";
+import type {
+  HealthResponse,
+  RecallRequest,
+  RecallResponse,
+  CaptureRequest,
+  CaptureResponse,
+  MemorySearchRequest,
+  MemorySearchResponse,
+  ConversationSearchRequest,
+  ConversationSearchResponse,
+  SessionEndRequest,
+  SessionEndResponse,
+  SeedRequest,
+  SeedResponse,
+  GatewayErrorResponse,
+} from "./types.js";
+import { composeRecallContext } from "./recall-context.js";
+import type { Logger } from "../core/types.js";
+import { validateAndNormalizeRaw, fillTimestamps, SeedValidationError } from "../core/seed/input.js";
+import { executeSeed } from "../core/seed/seed-runtime.js";
+import type { SeedProgress } from "../core/seed/types.js";
+
+const TAG = "[tdai-gateway]";
+const VERSION = "0.1.0";
+
+// ============================
+// Console logger (for standalone gateway — no OpenClaw logger available)
+// ============================
+
+function createConsoleLogger(): Logger {
+  return {
+    debug: (msg: string) => console.debug(`${TAG} ${msg}`),
+    info: (msg: string) => console.info(`${TAG} ${msg}`),
+    warn: (msg: string) => console.warn(`${TAG} ${msg}`),
+    error: (msg: string) => console.error(`${TAG} ${msg}`),
+  };
+}
+
+// ============================
+// Request body parser
+// ============================
+
+async function parseJsonBody<T>(req: http.IncomingMessage): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => {
+      try {
+        const body = Buffer.concat(chunks).toString("utf-8");
+        resolve(JSON.parse(body) as T);
+      } catch (err) {
+        reject(new Error("Invalid JSON body"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
+  const json = JSON.stringify(body);
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    "Content-Length": Buffer.byteLength(json),
+  });
+  res.end(json);
+}
+
+function sendError(res: http.ServerResponse, status: number, message: string): void {
+  sendJson(res, status, { error: message } satisfies GatewayErrorResponse);
+}
+
+/**
+ * Constant-time string equality for secrets.
+ *
+ * Returns `false` on any length mismatch (without comparing bytes), and uses
+ * `crypto.timingSafeEqual` for the equal-length case so that an attacker
+ * probing the API key cannot use response timing to learn a prefix match.
+ */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "utf-8");
+  const bb = Buffer.from(b, "utf-8");
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
+
+// ============================
+// Gateway Server
+// ============================
+
+export class TdaiGateway {
+  private config: GatewayConfig;
+  private logger: Logger;
+  private core: TdaiCore;
+  private offloadBridge: Awaited<ReturnType<typeof initOffloadBridge>> | null = null;
+  private server: http.Server | null = null;
+  private startTime = Date.now();
+
+  constructor(configOverrides?: Partial<GatewayConfig>) {
+    this.config = loadGatewayConfig(configOverrides);
+    this.logger = createConsoleLogger();
+
+    // Create host adapter
+    const adapter = new StandaloneHostAdapter({
+      dataDir: this.config.data.baseDir,
+      llmConfig: this.config.llm,
+      logger: this.logger,
+      platform: "gateway",
+    });
+
+    // Create core
+    this.core = new TdaiCore({
+      hostAdapter: adapter,
+      config: this.config.memory,
+      sessionFilter: new SessionFilter(this.config.memory.capture.excludeAgents),
+    });
+  }
+
+  /**
+   * Start the Gateway HTTP server.
+   */
+  async start(): Promise<void> {
+    // Initialize data directories
+    initDataDirectories(this.config.data.baseDir);
+
+    // Initialize core
+    await this.core.initialize();
+
+    // Initialize Offload Bridge (standalone short-term memory)
+    try {
+      this.offloadBridge = await initOffloadBridge({
+        dataDir: path.join(this.config.data.baseDir, "short-term"),
+        llmConfig: {
+          baseUrl: this.config.llm.baseUrl,
+          apiKey: this.config.llm.apiKey,
+          model: this.config.llm.model,
+          temperature: 0.1,
+          timeoutMs: this.config.llm.timeoutMs ?? 120_000,
+          disableThinking: this.config.llm.disableThinking,
+        },
+        logger: this.logger,
+      });
+    } catch (err) {
+      this.logger.warn(`Offload Bridge init skipped: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // Create HTTP server
+    this.server = http.createServer((req, res) => this.handleRequest(req, res));
+
+    const { port, host } = this.config.server;
+
+    await new Promise<void>((resolve, reject) => {
+      this.server!.listen(port, host, () => {
+        this.startTime = Date.now();
+        this.logger.info(`Gateway listening on http://${host}:${port}`);
+        this.logSecurityPosture();
+        resolve();
+      });
+      this.server!.on("error", reject);
+    });
+  }
+
+  /**
+   * Emit a one-shot security posture summary at startup.
+   *
+   * Goals:
+   *   1. Make the "auth disabled" state highly visible to anyone reading logs
+   *      (this is the documented default, but operators must know it before
+   *      they expose the port).
+   *   2. Loudly warn when the gateway is bound to anything other than the
+   *      loopback interface without an API key — that exact combination is
+   *      what the security audit flagged as a real exposure.
+   *   3. Never log the key itself.
+   */
+  private logSecurityPosture(): void {
+    const { host, apiKey, corsOrigins } = this.config.server;
+    const authOn = !!apiKey;
+    const loopback = host === "127.0.0.1" || host === "localhost" || host === "::1";
+
+    this.logger.info(
+      `Security posture: auth=${authOn ? "ENABLED (Bearer)" : "disabled"} ` +
+      `host=${host} cors=${corsOrigins.length === 0 ? "no-headers" : corsOrigins.includes("*") ? "wildcard(*)" : `allowlist(${corsOrigins.length})`}`
+    );
+
+    if (!authOn) {
+      this.logger.warn(
+        "TDAI_GATEWAY_API_KEY is NOT set — all routes except GET /health are " +
+        "open to anyone who can reach this port. This is the legacy default. " +
+        "Set TDAI_GATEWAY_API_KEY (or server.apiKey in tdai-gateway.yaml) and " +
+        "pass `Authorization: Bearer <key>` from clients before exposing the " +
+        "gateway beyond the loopback interface."
+      );
+    }
+    if (!loopback && !authOn) {
+      this.logger.warn(
+        `Gateway is bound to ${host} (non-loopback) WITHOUT an API key. ` +
+        "Every /capture, /search/conversations, /recall, /seed call from the " +
+        "network is currently unauthenticated. Bind to 127.0.0.1, or set " +
+        "TDAI_GATEWAY_API_KEY, before continuing."
+      );
+    }
+    if (corsOrigins.includes("*")) {
+      this.logger.warn(
+        "CORS allow-list contains '*' — every browser origin can call this " +
+        "gateway. Restrict server.corsOrigins to a concrete allow-list for any " +
+        "non-local deployment."
+      );
+    }
+  }
+
+  /**
+   * Gracefully stop the Gateway.
+   */
+  async stop(): Promise<void> {
+    this.logger.info("Shutting down gateway...");
+
+    if (this.server) {
+      await new Promise<void>((resolve) => {
+        this.server!.close(() => resolve());
+      });
+    }
+
+    await this.core.destroy();
+    this.logger.info("Gateway stopped");
+  }
+
+  // ============================
+  // Request router
+  // ============================
+
+  private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+    const method = req.method?.toUpperCase() ?? "GET";
+    const pathname = url.pathname;
+
+    // Apply CORS headers based on configured allow-list (empty → no headers).
+    this.applyCorsHeaders(req, res);
+
+    if (method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    try {
+      // GET /health is always reachable without auth — operators and
+      // orchestrators (k8s liveness, docker health-check) rely on it being
+      // an unconditionally cheap probe.
+      if (method === "GET" && pathname === "/health") {
+        return this.handleHealth(res);
+      }
+
+      // All other routes go through the optional auth gate. When apiKey is
+      // unset the gate is a no-op (preserves legacy open behaviour) — the
+      // startup WARN in `logSecurityPosture` covers that case.
+      if (!this.checkAuth(req, res)) return;
+
+      switch (`${method} ${pathname}`) {
+        case "POST /recall":
+          return await this.handleRecall(req, res);
+        case "POST /capture":
+          return await this.handleCapture(req, res);
+        case "POST /search/memories":
+          return await this.handleSearchMemories(req, res);
+        case "POST /search/conversations":
+          return await this.handleSearchConversations(req, res);
+        case "POST /session/end":
+          return await this.handleSessionEnd(req, res);
+        case "POST /seed":
+          return await this.handleSeed(req, res);
+        case "POST /offload/tool-call":
+          return await this.handleOffloadToolCall(req, res);
+        case "POST /offload/before-prompt":
+          return await this.handleOffloadBeforePrompt(req, res);
+        case "GET /offload/status":
+          return await this.handleOffloadStatus(req, res);
+        case "GET /offload/drill-down":
+          return await this.handleOffloadDrillDown(req, res);
+        default:
+          sendError(res, 404, `Not found: ${method} ${pathname}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Request error [${method} ${pathname}]: ${msg}`);
+      sendError(res, 500, msg);
+    }
+  }
+
+  // ============================
+  // Auth & CORS gates (opt-in, off by default)
+  // ============================
+
+  /**
+   * Verify the `Authorization: Bearer <apiKey>` header against the configured
+   * shared secret using a constant-time comparison.
+   *
+   * When `server.apiKey` is unset (`undefined`), this returns `true` without
+   * inspecting the request — this is the documented default and matches the
+   * pre-existing open behaviour. Operators are reminded of this at startup
+   * via `logSecurityPosture`.
+   *
+   * Returns `false` (and writes 401) when the token is missing, malformed, or
+   * does not match. Callers must short-circuit on `false`.
+   */
+  private checkAuth(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+    const expected = this.config.server.apiKey;
+    if (!expected) return true; // auth disabled — default behaviour
+
+    const header = req.headers["authorization"];
+    if (typeof header !== "string" || !header.startsWith("Bearer ")) {
+      sendError(res, 401, "Unauthorized: missing Bearer token");
+      return false;
+    }
+    const provided = header.slice("Bearer ".length).trim();
+    if (!provided || !safeEqual(provided, expected)) {
+      sendError(res, 401, "Unauthorized: invalid token");
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Echo `Access-Control-Allow-Origin` (and friends) only for whitelisted
+   * origins. With no list configured we emit no CORS headers at all, which
+   * makes the browser refuse the cross-origin request as desired.
+   *
+   * The single-entry list `["*"]` opts back into permissive CORS (development
+   * use only; the startup log flags this loudly).
+   */
+  private applyCorsHeaders(req: http.IncomingMessage, res: http.ServerResponse): void {
+    const allow = this.config.server.corsOrigins ?? [];
+    if (allow.length === 0) return; // strict default — no headers
+
+    if (allow.includes("*")) {
+      // Wildcard — preserves the legacy permissive behaviour for callers that
+      // opt in explicitly via config. Note: with wildcard we deliberately do
+      // not echo back the request Origin and do not send `Vary: Origin`,
+      // mirroring how the gateway behaved before this change.
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      return;
+    }
+
+    const requestOrigin = req.headers["origin"];
+    if (typeof requestOrigin !== "string" || !allow.includes(requestOrigin)) {
+      // Origin not in allow-list — emit no CORS headers; browser will block.
+      // Always set Vary so caches don't poison responses across origins.
+      res.setHeader("Vary", "Origin");
+      return;
+    }
+    res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Vary", "Origin");
+  }
+
+  // ============================
+  // Route handlers
+  // ============================
+
+  private handleHealth(res: http.ServerResponse): void {
+    const response: HealthResponse = {
+      status: this.core.getVectorStore() ? "ok" : "degraded",
+      version: VERSION,
+      uptime: Math.floor((Date.now() - this.startTime) / 1000),
+      stores: {
+        vectorStore: !!this.core.getVectorStore(),
+        embeddingService: !!this.core.getEmbeddingService(),
+      },
+    };
+    sendJson(res, 200, response);
+  }
+
+  private async handleRecall(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = await parseJsonBody<RecallRequest>(req);
+
+    if (!body.query || !body.session_key) {
+      sendError(res, 400, "Missing required fields: query, session_key");
+      return;
+    }
+
+    const startMs = Date.now();
+    const result = await this.core.handleBeforeRecall(body.query, body.session_key);
+    const elapsed = Date.now() - startMs;
+
+    this.logger.info(`Recall completed in ${elapsed}ms: context=${(result.appendSystemContext?.length ?? 0)} chars`);
+
+    let dynamicL1 = result.prependContext ?? "";
+    let strategy = result.recallStrategy;
+    let memoryCount = result.recalledL1Memories?.length ?? 0;
+    if (body.multi_hop) {
+      const memories = await this.core.searchMemories({
+        query: body.query,
+        limit: body.l1_limit ?? 8,
+        multiHop: true,
+        maxQueries: body.max_queries,
+      });
+      dynamicL1 = memories.text;
+      strategy = memories.strategy;
+      memoryCount = memories.total;
+    }
+
+    let l0Text = "";
+    let l0Count = 0;
+    if (body.include_l0) {
+      const conversations = await this.core.searchConversations({
+        query: body.query,
+        limit: body.l0_limit ?? 6,
+        sessionKey: body.session_key,
+        multiHop: body.multi_hop,
+        maxQueries: body.max_queries,
+        contextWindow: body.context_window ?? 1,
+        contextPolicy: body.context_policy ?? "auto",
+      });
+      l0Text = conversations.text;
+      l0Count = conversations.total;
+    }
+
+    const response: RecallResponse = {
+      context: composeRecallContext({
+        dynamicL1,
+        l0: l0Text,
+        stable: result.appendSystemContext,
+      }),
+      strategy,
+      memory_count: memoryCount,
+      l0_count: l0Count,
+    };
+    sendJson(res, 200, response);
+  }
+
+  private async handleCapture(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = await parseJsonBody<CaptureRequest>(req);
+
+    if (!body.user_content || !body.assistant_content || !body.session_key) {
+      sendError(res, 400, "Missing required fields: user_content, assistant_content, session_key");
+      return;
+    }
+
+    const startMs = Date.now();
+    const result = await this.core.handleTurnCommitted({
+      userText: body.user_content,
+      assistantText: body.assistant_content,
+      messages: body.messages ?? [
+        { role: "user", content: body.user_content },
+        { role: "assistant", content: body.assistant_content },
+      ],
+      sessionKey: body.session_key,
+      sessionId: body.session_id,
+    });
+    const elapsed = Date.now() - startMs;
+
+    this.logger.info(`Capture completed in ${elapsed}ms: l0=${result.l0RecordedCount}`);
+
+    const response: CaptureResponse = {
+      l0_recorded: result.l0RecordedCount,
+      scheduler_notified: result.schedulerNotified,
+    };
+    sendJson(res, 200, response);
+  }
+
+  private async handleSearchMemories(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = await parseJsonBody<MemorySearchRequest>(req);
+
+    if (!body.query) {
+      sendError(res, 400, "Missing required field: query");
+      return;
+    }
+
+    const result = await this.core.searchMemories({
+      query: body.query,
+      limit: body.limit,
+      type: body.type,
+      scene: body.scene,
+      multiHop: body.multi_hop,
+      maxQueries: body.max_queries,
+      hybridSourceFloor: body.hybrid_source_floor,
+      strategy: body.strategy,
+      hybridFloorPolicy: body.hybrid_floor_policy,
+    });
+
+    const response: MemorySearchResponse = {
+      results: result.text,
+      total: result.total,
+      strategy: result.strategy,
+    };
+    sendJson(res, 200, response);
+  }
+
+  private async handleSearchConversations(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = await parseJsonBody<ConversationSearchRequest>(req);
+
+    if (!body.query) {
+      sendError(res, 400, "Missing required field: query");
+      return;
+    }
+
+    const result = await this.core.searchConversations({
+      query: body.query,
+      limit: body.limit,
+      sessionKey: body.session_key,
+      multiHop: body.multi_hop,
+      maxQueries: body.max_queries,
+      hybridSourceFloor: body.hybrid_source_floor,
+      strategy: body.strategy,
+      hybridFloorPolicy: body.hybrid_floor_policy,
+      contextWindow: body.context_window,
+      contextPolicy: body.context_policy,
+    });
+
+    const response: ConversationSearchResponse = {
+      results: result.text,
+      total: result.total,
+      strategy: result.strategy,
+    };
+    sendJson(res, 200, response);
+  }
+
+  private async handleSessionEnd(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = await parseJsonBody<SessionEndRequest>(req);
+
+    if (!body.session_key) {
+      sendError(res, 400, "Missing required field: session_key");
+      return;
+    }
+
+    await this.core.handleSessionEnd(body.session_key);
+
+    const response: SessionEndResponse = { flushed: true };
+    sendJson(res, 200, response);
+  }
+
+  private async handleSeed(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = await parseJsonBody<SeedRequest>(req);
+
+    if (!body.data) {
+      sendError(res, 400, "Missing required field: data");
+      return;
+    }
+
+    // Validate and normalize input (reuses seed CLI's validation layers 2-6)
+    let input;
+    try {
+      input = validateAndNormalizeRaw(body.data, {
+        sessionKey: body.session_key,
+        strictRoundRole: body.strict_round_role,
+        autoFillTimestamps: body.auto_fill_timestamps ?? true,
+      });
+    } catch (err) {
+      if (err instanceof SeedValidationError) {
+        sendJson(res, 400, {
+          error: err.message,
+          validation_errors: err.errors,
+        });
+        return;
+      }
+      throw err;
+    }
+
+    this.logger.info(
+      `Seed request: ${input.sessions.length} session(s), ` +
+      `${input.totalRounds} round(s), ${input.totalMessages} message(s)`,
+    );
+
+    // Resolve output directory: use gateway's data dir with a timestamped subfolder
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const ts =
+      `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-` +
+      `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const outputDir = `${this.config.data.baseDir}/seed-${ts}`;
+
+    // Merge config overrides if provided
+    // Start with the base memory config + inject llm config from gateway settings
+    const baseConfig = this.config.memory as unknown as Record<string, unknown>;
+    let pluginConfig: Record<string, unknown> = {
+      ...baseConfig,
+      llm: {
+        enabled: true,
+        baseUrl: this.config.llm.baseUrl,
+        apiKey: this.config.llm.apiKey,
+        model: this.config.llm.model,
+        maxTokens: this.config.llm.maxTokens,
+        timeoutMs: this.config.llm.timeoutMs,
+        disableThinking: this.config.llm.disableThinking,
+      },
+    };
+    if (body.config_override) {
+      for (const key of Object.keys(body.config_override)) {
+        const baseVal = pluginConfig[key];
+        const overVal = body.config_override[key];
+        if (baseVal && typeof baseVal === "object" && !Array.isArray(baseVal) &&
+            overVal && typeof overVal === "object" && !Array.isArray(overVal)) {
+          pluginConfig[key] = { ...(baseVal as Record<string, unknown>), ...(overVal as Record<string, unknown>) };
+        } else {
+          pluginConfig[key] = overVal;
+        }
+      }
+    }
+
+    // Execute seed pipeline (blocking — this may take minutes for large inputs)
+    const summary = await executeSeed(input, {
+      outputDir,
+      openclawConfig: {},
+      pluginConfig,
+      logger: this.logger as import("../utils/pipeline-factory.js").PipelineLogger,
+      onProgress: (progress: SeedProgress) => {
+        this.logger.debug?.(
+          `Seed progress: [${progress.currentRound}/${progress.totalRounds}] ` +
+          `session=${progress.sessionKey} stage=${progress.stage}`,
+        );
+      },
+    });
+
+    this.logger.info(
+      `Seed complete: sessions=${summary.sessionsProcessed}, rounds=${summary.roundsProcessed}, ` +
+      `l0=${summary.l0RecordedCount}, duration=${(summary.durationMs / 1000).toFixed(1)}s`,
+    );
+
+    const response: SeedResponse = {
+      sessions_processed: summary.sessionsProcessed,
+      rounds_processed: summary.roundsProcessed,
+      messages_processed: summary.messagesProcessed,
+      l0_recorded: summary.l0RecordedCount,
+      duration_ms: summary.durationMs,
+      output_dir: summary.outputDir,
+    };
+    sendJson(res, 200, response);
+  }
+
+  // ============================
+  // Offload Bridge handlers (standalone short-term memory)
+  // ============================
+
+  private async handleOffloadToolCall(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (!this.offloadBridge) {
+      sendError(res, 503, "Offload Bridge not available");
+      return;
+    }
+    const body = await parseJsonBody<{
+      session_key: string;
+      tool_name: string;
+      tool_result: string;
+      event_id?: string;
+      is_error?: boolean;
+      force_offload?: boolean;
+      recent_context?: string;
+    }>(req);
+    if (!body.session_key || !body.tool_name || body.tool_result === undefined) {
+      sendError(res, 400, "Missing fields: session_key, tool_name, tool_result");
+      return;
+    }
+    try {
+      const result = await this.offloadBridge.toolCall(body.session_key, body.tool_name, body.tool_result, {
+        eventId: body.event_id,
+        isError: body.is_error,
+        forceOffload: body.force_offload,
+        recentContext: body.recent_context,
+      });
+      sendJson(res, 200, result);
+    } catch (err) {
+      sendError(res, 500, err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  private async handleOffloadBeforePrompt(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (!this.offloadBridge) {
+      sendError(res, 503, "Offload Bridge not available");
+      return;
+    }
+    const body = await parseJsonBody<{ session_key: string }>(req);
+    if (!body.session_key) {
+      sendError(res, 400, "Missing field: session_key");
+      return;
+    }
+    try {
+      const result = await this.offloadBridge.beforePrompt(body.session_key);
+      sendJson(res, 200, { status: "mmd_injected", ...result });
+    } catch (err) {
+      sendError(res, 500, err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  private async handleOffloadStatus(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (!this.offloadBridge) {
+      sendError(res, 503, "Offload Bridge not available");
+      return;
+    }
+    const url = new URL(req.url ?? "/", "http://localhost");
+    const sessionKey = url.searchParams.get("session_key") ?? "";
+    try {
+      const status = await this.offloadBridge.getStatus(sessionKey);
+      sendJson(res, 200, status);
+    } catch (err) {
+      sendError(res, 500, err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  private async handleOffloadDrillDown(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (!this.offloadBridge) {
+      sendError(res, 503, "Offload Bridge not available");
+      return;
+    }
+    const url = new URL(req.url ?? "/", "http://localhost");
+    const sessionKey = url.searchParams.get("session_key") ?? "";
+    const nodeId = url.searchParams.get("node_id") ?? "";
+    if (!sessionKey || !nodeId) {
+      sendError(res, 400, "Missing query fields: session_key, node_id");
+      return;
+    }
+    try {
+      const result = await this.offloadBridge.drillDown(sessionKey, nodeId);
+      sendJson(res, 200, result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      sendError(res, message.startsWith("Unknown node_id") ? 404 : 500, message);
+    }
+  }
+}
+
+// ============================
+// CLI entry point
+// ============================
+
+/**
+ * Start the gateway from the command line.
+ * Usage: node --import tsx src/gateway/server.ts
+ */
+async function main(): Promise<void> {
+  const gateway = new TdaiGateway();
+
+  // Graceful shutdown
+  const shutdown = async () => {
+    await gateway.stop();
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
+  await gateway.start();
+}
+
+// Auto-start when run directly
+const isMain = process.argv[1]?.endsWith("server.ts") || process.argv[1]?.endsWith("server.js");
+if (isMain) {
+  main().catch((err) => {
+    console.error("Gateway startup failed:", err);
+    process.exit(1);
+  });
+}

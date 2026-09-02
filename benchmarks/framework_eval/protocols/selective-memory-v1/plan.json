@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "protocol_id": "selective-memory-v1",
+  "seed": "20260820",
+  "datasets": [
+    {
+      "dataset": "slurp_memory",
+      "execution_phase": 1,
+      "questions": 440,
+      "conversations": 31,
+      "sessions": 440,
+      "messages": 1320,
+      "source_characters": 33304,
+      "manifest": "benchmarks/framework_eval/protocols/selective-memory-v1/slurp_memory.json"
+    },
+    {
+      "dataset": "kvret_memory",
+      "execution_phase": 1,
+      "questions": 420,
+      "conversations": 10,
+      "sessions": 420,
+      "messages": 2313,
+      "source_characters": 98924,
+      "manifest": "benchmarks/framework_eval/protocols/selective-memory-v1/kvret_memory.json"
+    },
+    {
+      "dataset": "longmemeval",
+      "execution_phase": 2,
+      "questions": 300,
+      "conversations": 300,
+      "sessions": 14356,
+      "messages": 148667,
+      "source_characters": 146784376,
+      "manifest": "benchmarks/framework_eval/protocols/selective-memory-v1/longmemeval.json"
+    }
+  ],
+  "arms": [
+    {
+      "id": "full-l0-l1",
+      "store_group": "full",
+      "construction": {
+        "l1_policy": "all",
+        "l23_schedule": "disabled"
+      },
+      "retrieval": {
+        "policy": "fixed",
+        "layers": [
+          "L0",
+          "L1"
+        ],
+        "top_k": 8,
+        "window_before": 1,
+        "window_after": 12,
+        "max_context_chars": 3000
+      }
+    },
+    {
+      "id": "l0-top1",
+      "store_group": "full",
+      "construction": {
+        "l1_policy": "all",
+        "l23_schedule": "disabled"
+      },
+      "retrieval": {
+        "policy": "fixed",
+        "layers": [
+          "L0"
+        ],
+        "top_k": 1,
+        "window_before": 1,
+        "window_after": 12,
+        "max_context_chars": 900
+      }
+    },
+    {
+      "id": "adaptive-top1-top3-l1",
+      "store_group": "full",
+      "construction": {
+        "l1_policy": "all",
+        "l23_schedule": "disabled"
+      },
+      "retrieval": {
+        "policy": "adaptive",
+        "layers": [
+          "L0",
+          "L1"
+        ],
+        "fast_l0_k": 1,
+        "fallback_l0_k": 3,
+        "fallback_l1_k": 2,
+        "window_before": 1,
+        "window_after": 12,
+        "context_tiers_chars": [
+          900,
+          2200
+        ]
+      }
+    },
+    {
+      "id": "selective-l1",
+      "store_group": "selective",
+      "construction": {
+        "l1_policy": "cockpit_selective_v1",
+        "l23_schedule": "disabled"
+      },
+      "retrieval": {
+        "policy": "fixed",
+        "layers": [
+          "L0",
+          "L1"
+        ],
+        "top_k": 8,
+        "max_context_chars": 3000
+      }
+    },
+    {
+      "id": "selective-l1-async-l23",
+      "store_group": "selective",
+      "construction": {
+        "l1_policy": "cockpit_selective_v1",
+        "l23_schedule": "buffered_dirty_event"
+      },
+      "retrieval": {
+        "policy": "adaptive",
+        "layers": [
+          "L0",
+          "L1",
+          "L2",
+          "L3"
+        ],
+        "fast_l0_k": 1,
+        "fallback_l0_k": 3,
+        "fallback_l1_k": 2,
+        "fallback_l2_k": 1,
+        "fallback_l3_k": 1,
+        "window_before": 1,
+        "window_after": 12,
+        "context_tiers_chars": [
+          900,
+          2600
+        ]
+      }
+    }
+  ],
+  "paired_comparison": true,
+  "execution_started": false
+}

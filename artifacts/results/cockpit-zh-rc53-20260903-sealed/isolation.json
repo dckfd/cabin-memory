@@ -1,0 +1,207 @@
+{
+  "dataset_id": "cockpit-zh-public-mix-500-v7",
+  "team_id": "cockpit-zh-rc52-v7-team",
+  "user_id": "cockpit-zh-rc52-v7-user",
+  "conversations": {
+    "cockpit-zh-public-mix-p01": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p01",
+      "task_id": "cockpit-zh-rc52-v7-task-p01"
+    },
+    "cockpit-zh-public-mix-p02": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p02",
+      "task_id": "cockpit-zh-rc52-v7-task-p02"
+    },
+    "cockpit-zh-public-mix-p03": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p03",
+      "task_id": "cockpit-zh-rc52-v7-task-p03"
+    },
+    "cockpit-zh-public-mix-p04": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p04",
+      "task_id": "cockpit-zh-rc52-v7-task-p04"
+    },
+    "cockpit-zh-public-mix-p05": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p05",
+      "task_id": "cockpit-zh-rc52-v7-task-p05"
+    },
+    "cockpit-zh-public-mix-p06": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p06",
+      "task_id": "cockpit-zh-rc52-v7-task-p06"
+    },
+    "cockpit-zh-public-mix-p07": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p07",
+      "task_id": "cockpit-zh-rc52-v7-task-p07"
+    },
+    "cockpit-zh-public-mix-p08": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p08",
+      "task_id": "cockpit-zh-rc52-v7-task-p08"
+    },
+    "cockpit-zh-public-mix-p09": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p09",
+      "task_id": "cockpit-zh-rc52-v7-task-p09"
+    },
+    "cockpit-zh-public-mix-p10": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p10",
+      "task_id": "cockpit-zh-rc52-v7-task-p10"
+    },
+    "cockpit-zh-public-mix-p11": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p11",
+      "task_id": "cockpit-zh-rc52-v7-task-p11"
+    },
+    "cockpit-zh-public-mix-p12": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p12",
+      "task_id": "cockpit-zh-rc52-v7-task-p12"
+    },
+    "cockpit-zh-public-mix-p13": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p13",
+      "task_id": "cockpit-zh-rc52-v7-task-p13"
+    },
+    "cockpit-zh-public-mix-p14": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p14",
+      "task_id": "cockpit-zh-rc52-v7-task-p14"
+    },
+    "cockpit-zh-public-mix-p15": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p15",
+      "task_id": "cockpit-zh-rc52-v7-task-p15"
+    },
+    "cockpit-zh-public-mix-p16": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p16",
+      "task_id": "cockpit-zh-rc52-v7-task-p16"
+    },
+    "cockpit-zh-public-mix-p17": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p17",
+      "task_id": "cockpit-zh-rc52-v7-task-p17"
+    },
+    "cockpit-zh-public-mix-p18": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p18",
+      "task_id": "cockpit-zh-rc52-v7-task-p18"
+    },
+    "cockpit-zh-public-mix-p19": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p19",
+      "task_id": "cockpit-zh-rc52-v7-task-p19"
+    },
+    "cockpit-zh-public-mix-p20": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p20",
+      "task_id": "cockpit-zh-rc52-v7-task-p20"
+    },
+    "cockpit-zh-public-mix-p21": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p21",
+      "task_id": "cockpit-zh-rc52-v7-task-p21"
+    },
+    "cockpit-zh-public-mix-p22": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p22",
+      "task_id": "cockpit-zh-rc52-v7-task-p22"
+    },
+    "cockpit-zh-public-mix-p23": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p23",
+      "task_id": "cockpit-zh-rc52-v7-task-p23"
+    },
+    "cockpit-zh-public-mix-p24": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p24",
+      "task_id": "cockpit-zh-rc52-v7-task-p24"
+    },
+    "cockpit-zh-public-mix-p25": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p25",
+      "task_id": "cockpit-zh-rc52-v7-task-p25"
+    },
+    "cockpit-zh-public-mix-p26": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p26",
+      "task_id": "cockpit-zh-rc52-v7-task-p26"
+    },
+    "cockpit-zh-public-mix-p27": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p27",
+      "task_id": "cockpit-zh-rc52-v7-task-p27"
+    },
+    "cockpit-zh-public-mix-p28": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p28",
+      "task_id": "cockpit-zh-rc52-v7-task-p28"
+    },
+    "cockpit-zh-public-mix-p29": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p29",
+      "task_id": "cockpit-zh-rc52-v7-task-p29"
+    },
+    "cockpit-zh-public-mix-p30": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p30",
+      "task_id": "cockpit-zh-rc52-v7-task-p30"
+    },
+    "cockpit-zh-public-mix-p31": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p31",
+      "task_id": "cockpit-zh-rc52-v7-task-p31"
+    },
+    "cockpit-zh-public-mix-p32": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p32",
+      "task_id": "cockpit-zh-rc52-v7-task-p32"
+    },
+    "cockpit-zh-public-mix-p33": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p33",
+      "task_id": "cockpit-zh-rc52-v7-task-p33"
+    },
+    "cockpit-zh-public-mix-p34": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p34",
+      "task_id": "cockpit-zh-rc52-v7-task-p34"
+    },
+    "cockpit-zh-public-mix-p35": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p35",
+      "task_id": "cockpit-zh-rc52-v7-task-p35"
+    },
+    "cockpit-zh-public-mix-p36": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p36",
+      "task_id": "cockpit-zh-rc52-v7-task-p36"
+    },
+    "cockpit-zh-public-mix-p37": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p37",
+      "task_id": "cockpit-zh-rc52-v7-task-p37"
+    },
+    "cockpit-zh-public-mix-p38": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p38",
+      "task_id": "cockpit-zh-rc52-v7-task-p38"
+    },
+    "cockpit-zh-public-mix-p39": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p39",
+      "task_id": "cockpit-zh-rc52-v7-task-p39"
+    },
+    "cockpit-zh-public-mix-p40": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p40",
+      "task_id": "cockpit-zh-rc52-v7-task-p40"
+    },
+    "cockpit-zh-public-mix-p41": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p41",
+      "task_id": "cockpit-zh-rc52-v7-task-p41"
+    },
+    "cockpit-zh-public-mix-p42": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p42",
+      "task_id": "cockpit-zh-rc52-v7-task-p42"
+    },
+    "cockpit-zh-public-mix-p43": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p43",
+      "task_id": "cockpit-zh-rc52-v7-task-p43"
+    },
+    "cockpit-zh-public-mix-p44": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p44",
+      "task_id": "cockpit-zh-rc52-v7-task-p44"
+    },
+    "cockpit-zh-public-mix-p45": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p45",
+      "task_id": "cockpit-zh-rc52-v7-task-p45"
+    },
+    "cockpit-zh-public-mix-p46": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p46",
+      "task_id": "cockpit-zh-rc52-v7-task-p46"
+    },
+    "cockpit-zh-public-mix-p47": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p47",
+      "task_id": "cockpit-zh-rc52-v7-task-p47"
+    },
+    "cockpit-zh-public-mix-p48": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p48",
+      "task_id": "cockpit-zh-rc52-v7-task-p48"
+    },
+    "cockpit-zh-public-mix-p49": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p49",
+      "task_id": "cockpit-zh-rc52-v7-task-p49"
+    },
+    "cockpit-zh-public-mix-p50": {
+      "agent_id": "cockpit-zh-rc52-v7-agent-p50",
+      "task_id": "cockpit-zh-rc52-v7-task-p50"
+    }
+  }
+}

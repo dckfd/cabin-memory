@@ -1,24 +1,25 @@
-# TencentDB Agent Memory：智能座舱长记忆 Recovery33
+# TencentDB Agent Memory：智能座舱长记忆 RC53
 
-这是一个可审计的研究快照，包含智能座舱长记忆系统的最终代码、公开来源评测集、Recovery33 构建记忆以及 500 题端到端评测结果。
+这是一个可审计的研究快照，包含智能座舱长记忆系统的 RC53 代码、公开来源评测集、Recovery33 构建记忆以及 500 题端到端评测结果。
 
-> 发布日期：2026-09-02（Asia/Shanghai）  
-> 状态：冻结快照；评测结束后未继续写入 Recovery33 记忆  
+> 发布日期：2026-09-03（Asia/Shanghai）
+> 状态：RC53 冻结快照；复用 Recovery33 记忆且未重新 seed
 > 使用限制：完整 500 题数据和派生记忆仅限研究/非商业用途，详见[数据许可](#数据许可与隐私)
 
 ## 最终结果
 
 | 指标 | 结果 |
 | --- | ---: |
-| 全量准确率 | **89.2%（446/500）** |
+| 独立 Judge 准确率 | **96.6%（483/500）** |
+| 分层人工复核调整后 | **97.8%（489/500）** |
 | 时间推理 | **100%（100/100）** |
-| 单会话偏好 | **92%（46/50）** |
-| 知识更新 | **89%（178/200）** |
-| 多会话记忆 | **81.3%（122/150）** |
+| 单会话偏好 | **88%（44/50）** |
+| 知识更新 | **97.5%（195/200）** |
+| 多会话记忆 | **96%（144/150）** |
 | 空回答 / Judge 调用错误 | **0 / 0** |
-| 相对既有 78% 基线 | **+11.2 个百分点** |
+| 相对 RC52 89.2% | **+7.4 个百分点** |
 
-142 道高置信问题由带来源约束的结构化 Harness 直接回答并全部通过 Judge；其余 358 道调用 DeepSeek V4 Flash，304 道通过。独立评审使用 DeepSeek V4 Pro。
+242 道高置信问题由带来源约束的结构化 Harness 直接回答并全部通过 Judge；其余 258 道调用 DeepSeek V4 Flash，241 道通过。独立评审使用 DeepSeek V4 Pro。人工复核了全部 17 个 Judge 负例和 20 个分层正例，其中 6 个负例为 Judge 对正确附加条件的保守误判；正式报告同时保留原始 Judge 分数和人工调整结果。
 
 ## 仓库内容
 
@@ -27,7 +28,8 @@
 | 最终 MemoryCore / MemoryProxy 源码 | `third_party/tencentdb-agent-memory-v2/` | 当前 Recovery33 使用的工作树快照，不含依赖缓存和密钥 |
 | 评测与结构化状态代码 | `benchmarks/framework_eval/` | 时间账本、证据召回、回答 Harness、数据校验及测试 |
 | 500 题数据集 | `benchmarks/framework_eval/challenges/cockpit_zh_public_mix_500_v7/` | 50 个新记忆包、500 道题、10 种能力、5 种 ASR 文本风格 |
-| 全量结果 | `artifacts/results/recovery33-full500/` | 检索证据、逐题回答、逐题 Judge、日志和汇总 |
+| RC53 全量结果 | `artifacts/results/cockpit-zh-rc53-20260903-sealed/` | 新检索、逐题回答、独立 Judge、人工复核、日志和汇总 |
+| RC52 历史结果 | `artifacts/results/recovery33-full500/` | 89.2% 冻结基线，保留供配对比较 |
 | 已构建记忆 | `artifacts/memory/recovery33-memory.tar.gz` | Recovery33 的 L0/L1/L2/L3、向量库、元数据与 checkpoint，只含基准数据 |
 | 来源与版本 | `docs/RELEASE_PROVENANCE.md` | 上游基线、快照边界和排除项 |
 
@@ -43,7 +45,7 @@ flowchart LR
     C --> E[DeepSeek V4 Flash]
     D --> F[最终答案]
     E --> F
-    F --> G[DeepSeek V4 Pro Judge\n446 / 500]
+    F --> G[DeepSeek V4 Pro Judge\n483 / 500]
 ```
 
 本版本的关键改动包括：
@@ -67,10 +69,14 @@ sha256sum -c SHA256SUMS
 
 ```bash
 jq '.accuracy, .correct, .expected_count, .by_category' \
-  artifacts/results/recovery33-full500/score-summary.json
+  artifacts/results/cockpit-zh-rc53-20260903-sealed/score-summary.json
 ```
 
-预期总分为 `0.892`、`446/500`。
+RC53 预期原始 Judge 总分为 `0.966`、`483/500`；人工复核调整后为 `489/500`。
+
+> `cockpit-zh-rc52-recovery33` 标签固定 89.2% 历史结果；
+> `cockpit-zh-rc53-recovery33-harness` 固定当前 96.6% 结果。RC53 是在同一 v7
+> 数据上的全新 retrieval/answer/Judge，不是新的未知 holdout，不能冒充跨数据集泛化成绩。
 
 ## 恢复已构建记忆
 
@@ -100,7 +106,7 @@ jq '.accuracy, .correct, .expected_count, .by_category' \
 
 ```bash
 # 外层插件
-npm install
+npm ci
 npm test
 
 # 最终 MemoryCore
@@ -125,6 +131,28 @@ python -m pytest \
 
 完整在线重跑需要自行配置兼容的回答模型和 Judge 凭据。仓库不包含任何 API token；已经生成的逐题证据、回答与 Judge 输出可离线审计。
 
+### 数据格式与 RC 重跑
+
+新数据集的字段规范、示例和无模型验证命令见
+[`docs/DATASET_CONTRACT.md`](docs/DATASET_CONTRACT.md)。内置
+`CockpitJSONLDataset` 可直接读取规范化的 `conversations.jsonl` 和
+`questions.jsonl`。
+
+恢复 Recovery33 记忆并启动兼容的 MemoryCore 后，可用统一入口产生一个拒绝覆盖的
+全新结果目录：
+
+```bash
+export TDAI_SERVICE_URL=http://127.0.0.1:18507
+export TDAI_API_KEY='服务访问令牌'
+export OPENAI_API_KEY='DeepSeek API Key'
+./scripts/release/run-recovery33-rc.sh artifacts/results/my-new-sealed-rc
+```
+
+入口依次执行数据验证、新 retrieval、DeepSeek Flash 回答和独立 DeepSeek Pro
+Judge，并生成运行清单及目录级 `SHA256SUMS`。它只读取 Recovery33，不会重新 seed；
+任一输出路径已经存在时会失败关闭。服务访问令牌和模型密钥只从环境读取，不写入日志
+或结果文件。
+
 ## 数据许可与隐私
 
 - 代码沿用上游 MIT License。
@@ -139,7 +167,7 @@ python -m pytest \
 
 ## 结果说明
 
-全量结果的正式摘要位于 `artifacts/results/recovery33-full500/FULL500-SUMMARY.md`。当前剩余错误主要集中在多人物跨会话绑定、最后一次/前一次顺序、多事件聚合、条件偏好顺序和取消后的最终状态。
+RC53 正式摘要位于 `artifacts/results/cockpit-zh-rc53-20260903-sealed/FULL500-SUMMARY.md`。当前真实剩余错误主要集中在完成导航的多事件计数、车辆检查预约终态和多字段更新中不变字段的保留。
 
 该快照用于复现与审计当前最终版本，不应将包含答案和 Judge 结果的目录用于继续调参，也不应把 500 题密封集当作训练集。
 

@@ -2,6 +2,14 @@
   "version": 1,
   "datasets": [
     {
+      "id": "cockpit_jsonl",
+      "adapter": "benchmarks.framework_eval.datasets.cockpit_jsonl:CockpitJSONLDataset",
+      "root": "benchmarks/framework_eval/challenges/cockpit_zh_public_mix_500_v7",
+      "judge": "benchmarks.framework_eval.judges.longmemeval:LongMemEvalJudge",
+      "judge_kwargs": {"dataset_root": "$dataset_root"},
+      "modalities": ["text"]
+    },
+    {
       "id": "locomo_refined",
       "adapter": "benchmarks.framework_eval.datasets.locomo_refined:LoCoMoRefinedDataset",
       "root": "LoCoMo_refined",

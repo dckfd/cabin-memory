@@ -1,0 +1,30 @@
+{
+  "questions": 500,
+  "skipped": 0,
+  "concurrency": 2,
+  "tokens": {
+    "prompt_tokens": 342107,
+    "completion_tokens": 6881,
+    "total_tokens": 348988
+  },
+  "answer_routes": {
+    "deterministic_slot": 242,
+    "model": 258
+  },
+  "answer_route_latency": {
+    "deterministic_slot": {
+      "count": 242,
+      "mean_seconds": 0.0007513750090517781,
+      "p50_seconds": 0.0005669340025633574,
+      "p95_seconds": 0.0020242969039827585
+    },
+    "model": {
+      "count": 258,
+      "mean_seconds": 0.8688208998005852,
+      "p50_seconds": 0.8552981161046773,
+      "p95_seconds": 1.2713581721764058
+    }
+  },
+  "seconds": 112.61247109202668,
+  "output": "artifacts/results/cockpit-zh-rc53-20260903-sealed/predictions-flash.jsonl"
+}

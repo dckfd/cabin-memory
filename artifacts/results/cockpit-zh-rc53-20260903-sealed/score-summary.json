@@ -1,0 +1,35 @@
+{
+  "expected_count": 500,
+  "result_count": 500,
+  "correct": 483,
+  "errors": 0,
+  "accuracy": 0.966,
+  "by_category": {
+    "knowledge-update": {
+      "count": 200,
+      "correct": 195,
+      "errors": 0,
+      "accuracy": 0.975
+    },
+    "multi-session": {
+      "count": 150,
+      "correct": 144,
+      "errors": 0,
+      "accuracy": 0.96
+    },
+    "single-session-preference": {
+      "count": 50,
+      "correct": 44,
+      "errors": 0,
+      "accuracy": 0.88
+    },
+    "temporal-reasoning": {
+      "count": 100,
+      "correct": 100,
+      "errors": 0,
+      "accuracy": 1.0
+    }
+  },
+  "judge_model": "deepseek-v4-pro",
+  "results": "artifacts/results/cockpit-zh-rc53-20260903-sealed/judge-results.jsonl"
+}

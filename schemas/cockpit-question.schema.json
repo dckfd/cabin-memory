@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dckfd/cabin-memory/schemas/cockpit-question.schema.json",
+  "title": "Cockpit memory evaluation question JSONL row",
+  "type": "object",
+  "required": ["qa_id", "sample_id", "question", "answer"],
+  "properties": {
+    "qa_id": {"type": "string", "minLength": 1},
+    "sample_id": {"type": "string", "minLength": 1},
+    "question": {"type": "string", "minLength": 1},
+    "answer": {"type": "array", "items": {"type": "string"}},
+    "category": {"type": "string"},
+    "question_type": {"type": "string"},
+    "question_date": {"type": "string", "format": "date-time"},
+    "is_abstention": {"type": "boolean"},
+    "answer_session_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "evidence": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {"timezone": {"type": "string", "minLength": 1}},
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

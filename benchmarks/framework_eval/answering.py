@@ -274,6 +274,20 @@ def _answer_contract(question: str) -> str:
         return "必须分别回答每个查询日期，答案中逐一保留对应日期；缺少任一日期的可靠证据就明确说明该日期证据不足。"
     if dates and re.search(r"截至|不晚于|及更早|之前的记录|只看", question):
         return f"只允许使用截止边界及更早证据；答案以“截至{dates[0]}”开头，不得用边界之后的信息补全。"
+    people = _contract_people(question)
+    if people and re.search(r"(?:各自|分别).*(?:偏好|常用|习惯|默认|目的[地的])", question):
+        return (
+            f"必须按问题顺序分别回答{ '、'.join(people) }，每个人只能绑定其本人证据；"
+            "长期偏好不得被一次性播放、导航或临时设置覆盖；缺少任一人物证据就明确指出该人物证据不足。"
+        )
+    if (
+        re.search(r"(?:最后一次|最近一次|最新一次)", question)
+        and re.search(r"(?:前一次|上一次)", question)
+    ):
+        return (
+            "必须按来源事件时间排序而非检索排名排序；先明确标注“最后一次”，再标注“前一次”，"
+            "且只输出问题指定的字段；不足两个不同来源事件就回答证据不足。"
+        )
     return ""
 
 
@@ -288,7 +302,44 @@ def _validate_answer_contract(question: str, answer: str) -> tuple[bool, str]:
     if dates and re.search(r"截至|不晚于|及更早|之前的记录|只看", question):
         if not answer.startswith(f"截至{dates[0]}"):
             return False, "未按截止边界作答"
+    people = _contract_people(question)
+    if people and re.search(r"(?:各自|分别).*(?:偏好|常用|习惯|默认|目的[地的])", question):
+        missing_people = [person for person in people if person not in answer]
+        if missing_people:
+            return False, "缺少人物：" + "、".join(missing_people)
+        positions = [answer.index(person) for person in people]
+        if positions != sorted(positions):
+            return False, "人物输出顺序与问题不一致"
+    if (
+        re.search(r"(?:最后一次|最近一次|最新一次)", question)
+        and re.search(r"(?:前一次|上一次)", question)
+    ):
+        final_marker = answer.find("最后一次")
+        previous_markers = [
+            position for marker in ("前一次", "上一次")
+            for position in [answer.find(marker)] if position >= 0
+        ]
+        if final_marker < 0 or not previous_markers:
+            return False, "缺少最后一次/前一次标签"
+        if final_marker > min(previous_markers):
+            return False, "最后一次/前一次输出顺序错误"
     return True, ""
+
+
+def _contract_people(question: str) -> tuple[str, ...]:
+    """Extract an explicitly separated person list without guessing names."""
+    match = re.search(
+        r"([^：:，,。；;？?]{1,80}?(?:、|和|与|及)[^：:，,。；;？?]{1,40})各自",
+        str(question or ""),
+    )
+    if not match:
+        return ()
+    values = [
+        value.strip()
+        for value in re.split(r"、|和|与|及", match.group(1))
+        if value.strip()
+    ]
+    return tuple(values) if 2 <= len(values) <= 8 else ()
 
 
 def _merge_usage(first: dict, second: dict) -> dict:

@@ -5,6 +5,59 @@ from .structured_state import parse_events, resolve_state_answer, temporal_conte
 
 
 class StructuredStateTests(unittest.TestCase):
+    def test_multi_person_persistent_preferences_are_owner_scoped(self):
+        context = "\n".join([
+            "[a:001] [source_time=2026-03-12T12:00:00+08:00] [source_role=user] 【甲】停车休息时我喜欢的车载媒体内容是星河，只归到我名下。",
+            "[b:001] [source_time=2026-03-13T12:00:00+08:00] [source_role=user] 【乙】停车休息时我喜欢的车载媒体内容是云海，只归到我名下。",
+            "[c:001] [source_time=2026-03-14T12:00:00+08:00] [source_role=user] 【丙】停车休息时我喜欢的车载媒体内容是晨风，只归到我名下。",
+            "[later:001] [source_time=2026-03-23T21:00:00+08:00] [source_role=user] 【甲】停车休息时的车载内容先播放夜曲，导航播报音量最多5格。",
+            "[latest:001] [source_time=2026-03-24T21:00:00+08:00] [source_role=user] 【甲】纠正一下，本次改为播放月光。",
+        ])
+        result = resolve_state_answer(
+            "综合三次独立会话，甲、乙、丙各自的停车休息媒体偏好是什么？",
+            context,
+        )
+        self.assertEqual(result["value"], "甲是星河；乙是云海；丙是晨风。")
+        self.assertEqual(result["source_ids"], ["a:001", "b:001", "c:001"])
+        self.assertEqual(result["reason"], "structured_owner_scoped_preferences")
+
+    def test_multi_person_preference_requires_complete_owner_coverage(self):
+        context = "\n".join([
+            "[a:001] [source_time=2026-03-12T12:00:00+08:00] [source_role=user] 【甲】我的常用车机目的地记成甲地，只归到我名下。",
+            "[b:001] [source_time=2026-03-13T12:00:00+08:00] [source_role=user] 【乙】我的常用车机目的地记成乙地，只归到我名下。",
+        ])
+        self.assertIsNone(resolve_state_answer(
+            "综合三次独立会话，甲、乙、丙各自的常用车机目的地是什么？",
+            context,
+        ))
+
+    def test_latest_previous_query_uses_event_time_and_named_field(self):
+        context = "\n".join([
+            "[new:001] [source_time=2026-03-04T09:00:00+08:00] [source_role=user] 【甲】蝎王府羊蝎子(兴华大街店)人均消费是50-100元吗？",
+            "[noise:001] [source_time=2026-03-06T18:00:00+08:00] [source_role=user] 【甲】今天车机导航到机场，已经到达。",
+            "[old:001] [source_time=2026-03-01T09:00:00+08:00] [source_role=user] 【甲】彼尔森啤酒健康烤肉周边还有啥餐馆么？",
+        ])
+        result = resolve_state_answer(
+            "回看甲的这段餐馆检索，最后一次明确查询的名称是什么，前一次是什么？",
+            context,
+        )
+        self.assertEqual(
+            result["value"],
+            "最后一次是蝎王府羊蝎子(兴华大街店)；前一次是彼尔森啤酒健康烤肉。",
+        )
+        self.assertEqual(result["source_ids"], ["new:001", "old:001"])
+        self.assertEqual(result["reason"], "structured_ordered_query_field")
+
+    def test_latest_previous_query_requires_two_distinct_events(self):
+        context = (
+            "[only:001] [source_time=2026-03-01T09:00:00+08:00] "
+            "[source_role=user] 【甲】查评分4.5分以上的景点。"
+        )
+        self.assertIsNone(resolve_state_answer(
+            "回看甲的这段景点检索，最后一次明确查询的评分是什么，前一次是什么？",
+            context,
+        ))
+
     def test_counts_only_completed_source_events(self):
         context = "\n".join([
             "[s1:001] [source_time=2026-01-01T08:00:00+08:00] [source_role=user] 【甲】导航到星河湾，已到达。",
@@ -95,6 +148,20 @@ class StructuredStateTests(unittest.TestCase):
         cutoff = "只看3月1日及更早记录，3月4日不能倒灌。"
         self.assertFalse(_validate_answer_contract(cutoff, "是甲地。")[0])
         self.assertTrue(_validate_answer_contract(cutoff, "截至3月1日是甲地。")[0])
+
+    def test_owner_and_sequence_answer_contracts(self):
+        owners = "综合三次独立会话，甲、乙、丙各自的停车休息媒体偏好是什么？"
+        self.assertIn("甲、乙、丙", _answer_contract(owners))
+        self.assertFalse(_validate_answer_contract(owners, "甲是星河；乙是云海。")[0])
+        self.assertTrue(_validate_answer_contract(
+            owners, "甲是星河；乙是云海；丙是晨风。"
+        )[0])
+        sequence = "回看甲的景点检索，最后一次明确查询的评分是什么，前一次是什么？"
+        self.assertIn("事件时间", _answer_contract(sequence))
+        self.assertFalse(_validate_answer_contract(sequence, "4分以上；4.5分以上。")[0])
+        self.assertTrue(_validate_answer_contract(
+            sequence, "最后一次是4分以上；前一次是4.5分以上。"
+        )[0])
 
 
 if __name__ == "__main__":

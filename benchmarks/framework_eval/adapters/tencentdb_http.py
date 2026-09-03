@@ -34,6 +34,7 @@ from ..cockpit_episode import (
 )
 from ..cockpit_slots import extract_cockpit_answer
 from ..schema import ContentPart, Conversation, MemoryHit, Question, Session
+from ..structured_state import resolve_state_answer
 from ..temporal import (
     TemporalQuery,
     humanize_temporal_span,
@@ -487,6 +488,9 @@ class TencentDBHTTPAdapter(MemoryAdapter):
         ).strip().lower() in {"1", "true", "yes", "on"}
         self.temporal_short_circuit = os.getenv(
             "TDAI_EVAL_TEMPORAL_SHORT_CIRCUIT", "false"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        self.structured_chain_retrieval = os.getenv(
+            "TDAI_EVAL_STRUCTURED_CHAIN_RETRIEVAL", "true"
         ).strip().lower() in {"1", "true", "yes", "on"}
         self.l0_diversify_sessions = os.getenv(
             "TDAI_EVAL_L0_DIVERSIFY_SESSIONS", "false"
@@ -2807,6 +2811,90 @@ class TencentDBHTTPAdapter(MemoryAdapter):
         self._l0_history_cache[key] = history
         return history
 
+    def _v3_structured_chain_rows(
+        self, question: Question, *, limit: int
+    ) -> list[dict]:
+        """Select complete source evidence for common cockpit chain queries.
+
+        Semantic top-k is a poor ordering primitive for owner-scoped
+        preferences and ``latest/previous`` history questions. Project those
+        two explicit query shapes over the already-stored canonical L0 event
+        stream, then return only the source rows used by the projection. The
+        projector is conservative: incomplete ownership/sequence coverage or
+        ambiguity returns no rows and leaves the normal retrieval route intact.
+
+        This path consumes neither benchmark evidence IDs nor expected answer
+        values, and it never changes memory construction.
+        """
+        if (
+            not self.structured_chain_retrieval
+            or "L0" not in self.memory_layers
+            or limit <= 0
+        ):
+            return []
+        text = str(question.text or "")
+        chain_intent = bool(
+            re.search(r"(?:各自|分别).*(?:偏好|常用|习惯|默认|目的[地的])", text)
+            or (
+                re.search(r"(?:最后一次|最近一次|最新一次)", text)
+                and re.search(r"(?:前一次|上一次)", text)
+            )
+        )
+        if not chain_intent:
+            return []
+        history = self._load_v3_l0_history(question.conversation_id)
+        messages = [
+            message
+            for session in history.sessions.values()
+            for message in session
+        ]
+        # Fail closed on an unexpectedly large stream rather than turning a
+        # targeted evidence-completeness route into an unbounded scan.
+        if not messages or len(messages) > 1000:
+            return []
+        context = "\n".join(message.content for message in messages)
+        if len(context) > 200_000:
+            return []
+        resolution = resolve_state_answer(
+            text, context, metadata=question.metadata
+        )
+        if not resolution or resolution.get("reason") not in {
+            "structured_owner_scoped_preferences",
+            "structured_ordered_query_field",
+        }:
+            return []
+        required = list(dict.fromkeys(
+            str(source_id)
+            for source_id in (resolution.get("source_ids") or [])
+            if str(source_id)
+        ))
+        if not required or len(required) > limit:
+            return []
+        rows: list[dict] = []
+        for source_id in required:
+            location = history.by_source_id.get(source_id)
+            if location is None:
+                return []
+            session_id, index = location
+            message = history.sessions[session_id][index]
+            rows.append({
+                "content": message.content,
+                "score": 2.0,
+                "source_ids": list(message.source_ids or (source_id,)),
+                "metadata": {
+                    "level": "L0",
+                    "role": _v3_source_role(message.content) or message.role,
+                    "backend_message_id": message.backend_id,
+                    "backend_recorded_at": message.backend_recorded_at,
+                    "timestamp": message.source_timestamp,
+                    "source_session_id": session_id,
+                    "retrieval_strategy": "structured_chain_evidence_v1",
+                    "structured_chain_reason": resolution["reason"],
+                    "structured_chain_complete": True,
+                },
+            })
+        return rows
+
     def _expand_v3_l0_windows(
         self, conversation_id: str, rows: list[dict], *, query: str = ""
     ) -> list[dict]:
@@ -3748,6 +3836,49 @@ class TencentDBHTTPAdapter(MemoryAdapter):
         temporal = self._resolve_query_temporal(question)
         backend_query = temporal.retrieval_text(question.text)
         temporal_normalization_seconds = time.monotonic() - temporal_started
+        structured_started = time.monotonic()
+        structured_rows = self._v3_structured_chain_rows(
+            question, limit=limit
+        )
+        structured_candidate_seconds = time.monotonic() - structured_started
+        if structured_rows:
+            decision = AdaptiveDecision(
+                route="fast",
+                fallback=False,
+                reason="grounded_structured_chain",
+                lexical_coverage=1.0,
+                score_margin=1.0,
+                quoted_anchor_match=True,
+                complex_query=True,
+                critical_slot_coverage=1.0,
+                missing_critical_slots=(),
+                dialogue_complete=True,
+            )
+            routing = self._adaptive_v3_routing_metadata(
+                decision,
+                search_calls=0,
+                context_budget=self.adaptive_fast_context_chars,
+                profile_hits=0,
+                profile_levels=set(),
+                readiness_layers=[],
+                readiness_seconds=0.0,
+                unready_layers=[],
+                temporal=temporal,
+                temporal_rows=[],
+                temporal_normalization_seconds=temporal_normalization_seconds,
+                temporal_candidate_seconds=0.0,
+                temporal_short_circuit_used=False,
+            )
+            routing.update({
+                "structured_chain_short_circuit_used": True,
+                "structured_chain_candidate_hits": len(structured_rows),
+                "structured_chain_candidate_seconds": (
+                    structured_candidate_seconds
+                ),
+            })
+            return self._memory_hits_with_routing(
+                structured_rows, routing, limit=limit
+            )
         perspectives = self._perspective_isolations(question.conversation_id)
         typed_episode_started = time.monotonic()
         typed_episode_rows = self._v3_typed_episode_direct_rows(
@@ -4091,6 +4222,27 @@ class TencentDBHTTPAdapter(MemoryAdapter):
             temporal = self._resolve_query_temporal(question)
             backend_query = temporal.retrieval_text(question.text)
             temporal_normalization_seconds = time.monotonic() - temporal_started
+            structured_started = time.monotonic()
+            structured_rows = self._v3_structured_chain_rows(
+                question, limit=limit
+            )
+            structured_candidate_seconds = time.monotonic() - structured_started
+            if structured_rows:
+                metadata = {
+                    "structured_chain_short_circuit_used": True,
+                    "structured_chain_candidate_hits": len(structured_rows),
+                    "structured_chain_candidate_seconds": (
+                        structured_candidate_seconds
+                    ),
+                    "temporal_query_mode": self.temporal_query_mode,
+                    "temporal_query_active": temporal.active,
+                    "temporal_query_relative": temporal.relative,
+                }
+                for row in structured_rows:
+                    row["metadata"].update(metadata)
+                return self._memory_hits_with_routing(
+                    structured_rows, {}, limit=limit
+                )
             rows: list[dict] = []
             candidate_limit = min(100, max(limit, limit * self.candidate_multiplier))
             for perspective in self._perspective_isolations(

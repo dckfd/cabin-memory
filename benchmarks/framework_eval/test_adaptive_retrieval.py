@@ -12,7 +12,11 @@ from .adapters.adaptive_policy import (
     score_l0_candidate,
 )
 from .adapters.base import MemoryAdapter
-from .adapters.tencentdb_http import TencentDBHTTPAdapter
+from .adapters.tencentdb_http import (
+    TencentDBHTTPAdapter,
+    _V3L0History,
+    _V3L0Message,
+)
 from .runner import RetrievalRunner
 from .schema import Conversation, MemoryHit, Message, Question, Session
 
@@ -99,6 +103,56 @@ class AdaptiveRetrievalTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         return TencentDBHTTPAdapter("http://unused")
+
+    def test_structured_chain_selects_latest_and_previous_by_event_time(self):
+        with tempfile.TemporaryDirectory() as directory:
+            adapter = self._adapter(directory)
+            older = _V3L0Message(
+                "b-old", "s-old", "user",
+                "[OLD] [source_time=2026-01-02T09:00:00+08:00] "
+                "[source_role=user] Driver: 【林岚】找人均消费100-150元的餐馆。",
+                ("OLD",), "2026-01-02T09:00:00+08:00", "2",
+            )
+            newer = _V3L0Message(
+                "b-new", "s-new", "user",
+                "[NEW] [source_time=2026-01-08T09:00:00+08:00] "
+                "[source_role=user] Driver: 【林岚】找人均消费300元以上的餐馆。",
+                ("NEW",), "2026-01-08T09:00:00+08:00", "1",
+            )
+            distractor = _V3L0Message(
+                "b-other", "s-other", "user",
+                "[OTHER] [source_time=2026-01-09T09:00:00+08:00] "
+                "[source_role=user] Driver: 【周岳】找人均消费500元以上的餐馆。",
+                ("OTHER",), "2026-01-09T09:00:00+08:00", "3",
+            )
+            adapter._l0_history_cache["conv"] = _V3L0History(
+                {"s-new": (newer,), "s-old": (older,), "s-other": (distractor,)},
+                {"b-new": ("s-new", 0), "b-old": ("s-old", 0),
+                 "b-other": ("s-other", 0)},
+                {"NEW": ("s-new", 0), "OLD": ("s-old", 0),
+                 "OTHER": ("s-other", 0)},
+                True,
+            )
+            question = Question(
+                "q", "conv",
+                "林岚这段餐馆检索中，最后一次和前一次明确查询的人均消费是什么？",
+                ("最后一次是300元以上；前一次是100-150元。",),
+            )
+
+            with mock.patch.object(
+                adapter, "_post", side_effect=AssertionError("unexpected ANN/API call")
+            ) as post:
+                hits = adapter.search(question, limit=5)
+
+        self.assertEqual([("NEW",), ("OLD",)], [hit.source_ids for hit in hits])
+        self.assertTrue(all(
+            hit.metadata["structured_chain_complete"] for hit in hits
+        ))
+        self.assertTrue(all(
+            hit.metadata["structured_chain_short_circuit_used"] for hit in hits
+        ))
+        self.assertNotIn("OTHER", {item for hit in hits for item in hit.source_ids})
+        post.assert_not_called()
 
     def test_fast_route_does_not_call_l1(self):
         with tempfile.TemporaryDirectory() as directory:
